@@ -1,0 +1,67 @@
+ 
+_pycache_/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.env/
+.envrc
+.venv/
+
+# Environment variables
+.env.local
+.env.dev
+.env.prod
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+[5:22 pm, 18/1/2026] Fahad: # Secrets & configs
+.env
+.env.*
+config.yaml
+secrets.yaml
+
+# Database
+*.sqlite3
+*.db
+
+# Migrations (optional – depends on team)
+migrations/
+
+# Cache
+.cache/
+redis_dump.rdb
+
+# Logs
+logs/
+*.log
+
+# Uploads / media
+uploads/
+media/
+
+# Docker
+.env.docker
+docker-compose.override.yml
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+.env
