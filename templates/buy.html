@@ -1,0 +1,132 @@
+{% extends "layout.html" %}
+
+{% block title %}Buy Stock{% endblock %}
+
+{% block main %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Buy Stock</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">Seize the opportunity—invest in your favorite stocks!</p>
+                    <form action="/buy" method="post">
+                        <div class="mb-4">
+                            <label for="symbol" class="form-label" title="Select the stock you want to buy">Stock Symbol</label>
+                            <select class="form-select" id="symbol" name="symbol" required>
+                                <option value="">Select a stock</option>
+                                {% for stock in available_stocks %}
+                                <option value="{{ stock.symbol }}" {% if request.args.get('symbol') == stock.symbol %}selected{% endif %}>{{ stock.symbol }} - {{ stock.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div id="stockInfo" class="mt-2" style="display: none;">
+                            <div class="stock-card">
+                                <div class="stock-info">
+                                    <div class="stock-symbol" id="stockSymbol"></div>
+                                    <div class="stock-name" id="stockName"></div>
+                                </div>
+                                <div class="stock-price">
+                                    <div class="stock-current-price" id="stockPrice"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label for="shares" class="form-label" title="Number of shares you want to buy">Number of Shares</label>
+                            <input type="number" class="form-control" id="shares" name="shares" min="1" step="1" required title="Number of shares you want to buy">
+                            <div class="form-text">Enter the number of shares you want to buy</div>
+                        </div>
+                        <div class="mb-4">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Order Summary</h6>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Price per share:</span>
+                                        <span id="pricePerShare">$0.00</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Number of shares:</span>
+                                        <span id="totalShares">0</span>
+                                    </div>
+                                    <hr>
+                                    <div class="d-flex justify-content-between">
+                                        <strong>Total Cost:</strong>
+                                        <strong id="totalCost">$0.00</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary w-100" title="Place your buy order">Buy</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPrice = 0;
+let userCredits = {{ cash|default(0) }};
+const stockData = {
+{% for stock in available_stocks -%}
+    "{{ stock.symbol }}": {"name": "{{ stock.name }}"}{% if not loop.last %},{% endif %}
+{% endfor %}
+};
+
+document.getElementById('symbol').addEventListener('change', async function() {
+    const symbol = this.value;
+    if (symbol && stockData[symbol]) {
+        // Fetch live price
+        const resp = await fetch(`/api/quote?symbol=${symbol}`);
+        const data = await resp.json();
+        currentPrice = data.price || 0;
+        document.getElementById('stockInfo').style.display = 'block';
+        document.getElementById('stockSymbol').textContent = symbol;
+        document.getElementById('stockName').textContent = stockData[symbol].name;
+        document.getElementById('stockPrice').textContent = formatCurrency(currentPrice);
+    } else {
+        currentPrice = 0;
+        document.getElementById('stockInfo').style.display = 'none';
+    }
+    updateOrderSummary();
+});
+
+document.getElementById('shares').addEventListener('input', updateOrderSummary);
+
+function updateOrderSummary() {
+    const shares = parseInt(document.getElementById('shares').value) || 0;
+    const totalCost = shares * currentPrice;
+    document.getElementById('pricePerShare').textContent = formatCurrency(currentPrice);
+    document.getElementById('totalShares').textContent = shares;
+    document.getElementById('totalCost').textContent = formatCurrency(totalCost);
+    const buyBtn = document.querySelector('button[type="submit"]');
+    const warning = document.getElementById('creditWarning');
+    if (totalCost > userCredits) {
+        buyBtn.disabled = true;
+        warning.style.display = 'block';
+    } else {
+        buyBtn.disabled = false;
+        warning.style.display = 'none';
+    }
+}
+
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: '{{ profile.currency }}'
+    }).format(amount);
+}
+
+window.addEventListener('DOMContentLoaded', function() {
+    const symbolSelect = document.getElementById('symbol');
+    if (symbolSelect.value) {
+        symbolSelect.dispatchEvent(new Event('change'));
+    }
+});
+</script>
+<div id="creditWarning" class="alert alert-danger mt-2" style="display:none;">Not enough credit. Please add funds to your account.</div>
+{% endblock %} 

@@ -1,0 +1,19 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Portfolio Performance
+{% endblock %}
+
+{% block main %}
+    <div class="container">
+        <h2>Portfolio Performance</h2>
+        
+        <!-- Chart -->
+        <div class="row">
+            <div class="col-12">
+                {{ chart | safe }}
+            </div>
+        </div>
+    </div>
+{% endblock %} 
+ 

@@ -1,0 +1,211 @@
+{% extends "layout.html" %}
+
+{% block title %}Watchlist{% endblock %}
+
+{% block main %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Watchlist</h5>
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addStockModal" title="Add a new stock to your watchlist">
+                        <i class="fas fa-plus me-2"></i>Add Stock
+                    </button>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Your Watchlist</h5>
+                    <p class="text-muted mb-3">Keep an eye on the market's movers and shakers.</p>
+                    {% if watchlist %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Name</th>
+                                    <th>Price</th>
+                                    <th>Change</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stock in watchlist %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <span class="stock-symbol" title="View details for this stock">{{ stock.symbol }}</span>
+                                            <a href="/quote?symbol={{ stock.symbol }}" class="btn btn-sm btn-link ms-2">
+                                                <i class="fas fa-external-link-alt"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                    <td>{{ stock.name }}</td>
+                                    <td>{{ stock.price | format_currency(profile.currency) }}</td>
+                                    <td>
+                                        <span class="{% if (stock.change or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {% if (stock.change or 0) >= 0 %}
+                                            <i class="fas fa-arrow-up"></i>
+                                            {% else %}
+                                            <i class="fas fa-arrow-down"></i>
+                                            {% endif %}
+                                            {{ (stock.change or 0) }}%
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="/buy?symbol={{ stock.symbol }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-shopping-cart"></i>
+                                            </a>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="removeFromWatchlist('{{ stock.symbol }}')" title="Remove this stock from your watchlist">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-star fa-3x mb-3 text-muted"></i>
+                        <h5>Your watchlist is empty</h5>
+                        <p class="text-muted">Add stocks to your watchlist to track their performance</p>
+                        <button type="button" class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#addStockModal">
+                            <i class="fas fa-plus me-2"></i>Add Your First Stock
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Stock Modal -->
+<div class="modal fade" id="addStockModal" tabindex="-1" aria-labelledby="addStockModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addStockModalLabel">Add Stock to Watchlist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addStockForm">
+                    <div class="mb-3">
+                        <label for="symbol" class="form-label">Stock Symbol</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="symbol" name="symbol" placeholder="Enter stock symbol (e.g., AAPL)" required>
+                            <button class="btn btn-outline-primary" type="button" onclick="lookupStock()">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="stockInfo" style="display: none;">
+                        <div class="stock-card">
+                            <div class="stock-info">
+                                <div class="stock-symbol" id="stockSymbol"></div>
+                                <div class="stock-name" id="stockName"></div>
+                            </div>
+                            <div class="stock-price">
+                                <div class="stock-current-price" id="stockPrice"></div>
+                                <div class="stock-change" id="stockChange"></div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addToWatchlist()">Add to Watchlist</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function lookupStock() {
+    const symbol = document.getElementById('symbol').value.toUpperCase();
+    if (!symbol) return;
+
+    fetch(`/quote?symbol=${symbol}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            document.getElementById('stockInfo').style.display = 'block';
+            document.getElementById('stockSymbol').textContent = data.symbol;
+            document.getElementById('stockName').textContent = data.name;
+            document.getElementById('stockPrice').textContent = formatCurrency(data.price);
+            
+            const change = data.change;
+            const changeElement = document.getElementById('stockChange');
+            changeElement.textContent = `${change >= 0 ? '+' : ''}${change}%`;
+            changeElement.className = `stock-change ${change >= 0 ? 'positive' : 'negative'}`;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while looking up the stock.');
+        });
+}
+
+function addToWatchlist() {
+    const symbol = document.getElementById('symbol').value.toUpperCase();
+    if (!symbol) return;
+
+    fetch('/watchlist/add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ symbol: symbol })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.error || 'Failed to add stock to watchlist');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while adding to watchlist');
+    });
+}
+
+function removeFromWatchlist(symbol) {
+    if (!confirm(`Are you sure you want to remove ${symbol} from your watchlist?`)) return;
+
+    fetch('/watchlist/remove', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ symbol: symbol })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.error || 'Failed to remove stock from watchlist');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while removing from watchlist');
+    });
+}
+
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: '{{ profile.currency }}'
+    }).format(amount);
+}
+</script>
+{% endblock %} 

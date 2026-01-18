@@ -1,0 +1,188 @@
+{% extends "layout.html" %}
+
+{% block title %}Stock Quote{% endblock %}
+
+{% block main %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Stock Quote</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">Get real-time insights before you invest!</p>
+                    <form action="/quote" method="get" class="mb-4">
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="symbol" placeholder="Enter stock symbol (e.g., AAPL)" required value="{{ request.args.get('symbol', '') }}">
+                            <button class="btn btn-primary" type="submit">
+                                <i class="fas fa-search me-2"></i>Look Up
+                            </button>
+                        </div>
+                    </form>
+
+                    {% if quote %}
+                    <div class="stock-card mb-4">
+                        <div class="stock-info">
+                            <div class="stock-symbol" title="Stock symbol">{{ quote.symbol }}</div>
+                            <div class="stock-name" title="Company name">{{ quote.name }}</div>
+                        </div>
+                        <div class="stock-price">
+                            <div class="stock-current-price" title="Current price in your selected currency">{{ quote.price | format_currency(profile.currency) }}</div>
+                            <div class="stock-change {% if quote.change >= 0 %}positive{% else %}negative{% endif %}" title="Today's price change">
+                                {% if quote.change >= 0 %}
+                                <i class="fas fa-arrow-up"></i>
+                                {% else %}
+                                <i class="fas fa-arrow-down"></i>
+                                {% endif %}
+                                {{ quote.change }}%
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card bg-light mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title">Market Data</h6>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Open:</span>
+                                        <span>{{ quote.open | default(0) | format_currency(profile.currency) }}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>High:</span>
+                                        <span>{{ quote.high | default(0) | format_currency(profile.currency) }}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Low:</span>
+                                        <span>{{ quote.low | default(0) | format_currency(profile.currency) }}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Volume:</span>
+                                        <span>{{ "{:,}".format(quote.volume | default(0)) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title">Company Info</h6>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Market Cap:</span>
+                                        <span>{{ quote.market_cap | default(0) | format_currency(profile.currency) }}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>P/E Ratio:</span>
+                                        <span>{{ (quote.pe_ratio or 0) | round(2) }}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>52W High:</span>
+                                        <span>{{ quote.year_high | default(0) | format_currency(profile.currency) }}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>52W Low:</span>
+                                        <span>{{ quote.year_low | default(0) | format_currency(profile.currency) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <a href="/buy?symbol={{ quote.symbol }}" class="btn btn-primary" title="Buy this stock">
+                            <i class="fas fa-shopping-cart me-2"></i>Buy {{ quote.symbol }}
+                        </a>
+                        <button class="btn btn-outline-primary" onclick="addToWatchlist('{{ quote.symbol }}')" title="Add to your watchlist">
+                            <i class="far fa-star me-2"></i>Add to Watchlist
+                        </button>
+                    </div>
+                    {% elif request.args.get('symbol') %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>No stock found with symbol "{{ request.args.get('symbol') }}"
+                    </div>
+                    {% endif %}
+
+                    {% if history and history|length > 0 %}
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">1-Year Growth Chart</h6>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="growthChart" height="120"></canvas>
+                        </div>
+                    </div>
+                    <script id="history-data" type="application/json">{{ history|tojson }}</script>
+                    {% elif history is not none %}
+                    <div class="alert alert-warning mt-4">No growth data available for this stock.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function addToWatchlist(symbol) {
+    fetch('/watchlist/add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ symbol: symbol })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Stock added to watchlist!');
+        } else {
+            alert(data.error || 'Failed to add stock to watchlist');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while adding to watchlist');
+    });
+}
+</script>
+
+<!-- Chart.js and growth chart rendering -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const historyData = JSON.parse(document.getElementById('history-data')?.textContent || '[]');
+  const chartEl = document.getElementById('growthChart');
+  if (chartEl && historyData.length > 0) {
+    const labels = historyData.map(item => item.date).reverse();
+    const prices = historyData.map(item => item.close).reverse();
+    const ctx = chartEl.getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Close Price',
+          data: prices,
+          borderColor: '#16C784',
+          backgroundColor: 'rgba(22,199,132,0.1)',
+          fill: true,
+          tension: 0.2,
+          pointRadius: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { mode: 'index', intersect: false }
+        },
+        scales: {
+          x: { display: false },
+          y: { beginAtZero: false }
+        }
+      }
+    });
+  }
+});
+</script>
+{% endblock %} 

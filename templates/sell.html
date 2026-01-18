@@ -1,0 +1,143 @@
+{% extends "layout.html" %}
+
+{% block title %}Sell Stock{% endblock %}
+
+{% block main %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Sell Stock</h5>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Sell Stock</h5>
+                    <p class="text-muted mb-3">Secure your gains or cut your losses—your move.</p>
+                    <form action="/sell" method="post">
+                        <div class="mb-4">
+                            <label for="symbol" class="form-label" title="Enter the ticker symbol you want to sell">Stock Symbol</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="symbol" name="symbol" placeholder="Enter stock symbol (e.g., AAPL)" required value="{{ request.args.get('symbol', '') }}" title="Enter the ticker symbol you want to sell">
+                                <button class="btn btn-outline-primary" type="button" onclick="lookupStock()">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                            <div id="stockInfo" class="mt-2" style="display: none;">
+                                <div class="stock-card">
+                                    <div class="stock-info">
+                                        <div class="stock-symbol" id="stockSymbol"></div>
+                                        <div class="stock-name" id="stockName"></div>
+                                        <div class="stock-shares" id="stockShares"></div>
+                                    </div>
+                                    <div class="stock-price">
+                                        <div class="stock-current-price" id="stockPrice"></div>
+                                        <div class="stock-change" id="stockChange"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="shares" class="form-label" title="Number of shares you want to sell">Number of Shares</label>
+                            <input type="number" class="form-control" id="shares" name="shares" min="1" step="1" required title="Number of shares you want to sell">
+                            <div class="form-text">Enter the number of shares you want to sell</div>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Order Summary</h6>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Price per share:</span>
+                                        <span id="pricePerShare">$0.00</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Number of shares:</span>
+                                        <span id="totalShares">0</span>
+                                    </div>
+                                    <hr>
+                                    <div class="d-flex justify-content-between">
+                                        <strong>Total Value:</strong>
+                                        <strong id="totalValue">$0.00</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-danger w-100" title="Place your sell order">Sell</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPrice = 0;
+let ownedShares = 0;
+
+function lookupStock() {
+    const symbol = document.getElementById('symbol').value.toUpperCase();
+    if (!symbol) return;
+
+    fetch(`/quote?symbol=${symbol}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            currentPrice = data.price;
+            ownedShares = data.shares || 0;
+            
+            document.getElementById('stockInfo').style.display = 'block';
+            document.getElementById('stockSymbol').textContent = data.symbol;
+            document.getElementById('stockName').textContent = data.name;
+            document.getElementById('stockShares').textContent = `Owned: ${ownedShares} shares`;
+            document.getElementById('stockPrice').textContent = formatCurrency(data.price);
+            
+            const change = data.change;
+            const changeElement = document.getElementById('stockChange');
+            changeElement.textContent = `${change >= 0 ? '+' : ''}${change}%`;
+            changeElement.className = `stock-change ${change >= 0 ? 'positive' : 'negative'}`;
+
+            // Set max shares in the input
+            document.getElementById('shares').max = ownedShares;
+            updateOrderSummary();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while looking up the stock.');
+        });
+}
+
+function updateOrderSummary() {
+    const shares = parseInt(document.getElementById('shares').value) || 0;
+    const totalValue = shares * currentPrice;
+
+    document.getElementById('pricePerShare').textContent = formatCurrency(currentPrice);
+    document.getElementById('totalShares').textContent = shares;
+    document.getElementById('totalValue').textContent = formatCurrency(totalValue);
+
+    // Validate shares
+    const sharesInput = document.getElementById('shares');
+    if (shares > ownedShares) {
+        sharesInput.setCustomValidity(`You can only sell up to ${ownedShares} shares`);
+    } else {
+        sharesInput.setCustomValidity('');
+    }
+}
+
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: '{{ profile.currency }}'
+    }).format(amount);
+}
+
+document.getElementById('shares').addEventListener('input', updateOrderSummary);
+</script>
+{% endblock %} 

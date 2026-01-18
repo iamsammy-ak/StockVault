@@ -1,0 +1,84 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Stop-Loss Orders
+{% endblock %}
+
+{% block main %}
+<h1 class="mb-4">Stop Loss Orders</h1>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Set Stop Loss</h5>
+                <form action="/stop-loss" method="post">
+                    <div class="mb-3">
+                        <label for="symbol" class="form-label">Symbol</label>
+                        <select class="form-select" id="symbol" name="symbol" required>
+                            <option value="">Select a stock</option>
+                            {% for stock in stocks %}
+                            <option value="{{ stock.symbol }}">{{ stock.symbol }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="price" class="form-label">Stop Price</label>
+                        <input type="number" class="form-control" id="price" name="price" step="0.01" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Set Stop Loss</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Active Stop Loss Orders</h5>
+                {% if stop_loss_orders %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Stop Price</th>
+                                <th>Current Price</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in stop_loss_orders %}
+                            <tr>
+                                <td>{{ order.symbol }}</td>
+                                <td>{{ order.price | format_currency(currency) }}</td>
+                                <td>{{ order.current_price | format_currency(currency) }}</td>
+                                <td>
+                                    <span class="badge {% if order.status == 'active' %}bg-success{% else %}bg-danger{% endif %}">
+                                        {{ order.status | upper }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <form action="/stop-loss/cancel" method="post" class="d-inline">
+                                        <input type="hidden" name="id" value="{{ order.id }}">
+                                        <button type="submit" class="btn btn-danger btn-sm">Cancel</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="fa-solid fa-info-circle me-2"></i>No active stop loss orders.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

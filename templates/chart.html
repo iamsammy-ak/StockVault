@@ -1,0 +1,32 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Stock Chart
+{% endblock %}
+
+{% block main %}
+    <div class="container">
+        <h2>Stock Chart</h2>
+        
+        <!-- Period Selection -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="btn-group" role="group">
+                    <a href="/chart/{{ symbol }}?period=1d" class="btn btn-outline-primary">1D</a>
+                    <a href="/chart/{{ symbol }}?period=1w" class="btn btn-outline-primary">1W</a>
+                    <a href="/chart/{{ symbol }}?period=1m" class="btn btn-outline-primary">1M</a>
+                    <a href="/chart/{{ symbol }}?period=3m" class="btn btn-outline-primary">3M</a>
+                    <a href="/chart/{{ symbol }}?period=1y" class="btn btn-outline-primary">1Y</a>
+                    <a href="/chart/{{ symbol }}?period=5y" class="btn btn-outline-primary">5Y</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="row">
+            <div class="col-12">
+                {{ chart | safe }}
+            </div>
+        </div>
+    </div>
+{% endblock %} 

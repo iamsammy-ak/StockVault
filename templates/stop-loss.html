@@ -1,0 +1,252 @@
+{% extends "layout.html" %}
+
+{% block title %}Stop Loss Orders{% endblock %}
+
+{% block main %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Stop Loss Orders</h5>
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addStopLossModal">
+                        <i class="fas fa-plus me-2"></i>Add Stop Loss
+                    </button>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Stop Loss Orders</h5>
+                    <p class="text-muted mb-3">Protect your investments with smart stop-loss orders.</p>
+                    {% if stop_loss_orders %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Shares</th>
+                                    <th>Current Price</th>
+                                    <th>Stop Price</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in stop_loss_orders %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <span class="stock-symbol">{{ order.symbol }}</span>
+                                            <a href="/quote?symbol={{ order.symbol }}" class="btn btn-sm btn-link ms-2">
+                                                <i class="fas fa-external-link-alt"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                    <td>{{ order.shares }}</td>
+                                    <td>{{ order.current_price | format_currency(profile.currency) }}</td>
+                                    <td>{{ order.stop_price | format_currency(profile.currency) }}</td>
+                                    <td>
+                                        <span class="badge {% if order.status == 'active' %}bg-success{% elif order.status == 'triggered' %}bg-danger{% else %}bg-warning{% endif %}">
+                                            {{ order.status | upper }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="editStopLoss('{{ order.id }}')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="cancelStopLoss('{{ order.id }}')">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-stop-circle fa-3x mb-3 text-muted"></i>
+                        <h5>No stop loss orders</h5>
+                        <p class="text-muted">Add stop loss orders to protect your investments</p>
+                        <button type="button" class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#addStopLossModal">
+                            <i class="fas fa-plus me-2"></i>Add Your First Stop Loss
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Stop Loss Modal -->
+<div class="modal fade" id="addStopLossModal" tabindex="-1" aria-labelledby="addStopLossModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addStopLossModalLabel">Add Stop Loss Order</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addStopLossForm">
+                    <div class="mb-3">
+                        <label for="symbol" class="form-label" title="Enter the ticker symbol for stop-loss">Stock Symbol</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="symbol" name="symbol" placeholder="Enter stock symbol (e.g., AAPL)" required title="Enter the ticker symbol for stop-loss">
+                            <button class="btn btn-outline-primary" type="button" onclick="lookupStock()">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="stockInfo" style="display: none;">
+                        <div class="stock-card">
+                            <div class="stock-info">
+                                <div class="stock-symbol" id="stockSymbol"></div>
+                                <div class="stock-name" id="stockName"></div>
+                                <div class="stock-shares" id="stockShares"></div>
+                            </div>
+                            <div class="stock-price">
+                                <div class="stock-current-price" id="stockPrice"></div>
+                                <div class="stock-change" id="stockChange"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="shares" class="form-label" title="Number of shares to protect">Number of Shares</label>
+                        <input type="number" class="form-control" id="shares" name="shares" min="1" step="1" required title="Number of shares to protect">
+                        <div class="form-text">Enter the number of shares to sell</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="stopPrice" class="form-label" title="Price at which to trigger stop-loss">Stop Price</label>
+                        <div class="input-group">
+                            <span class="input-group-text">{{ profile.currency }}</span>
+                            <input type="number" class="form-control" id="stopPrice" name="stop_price" min="0.01" step="0.01" required title="Price at which to trigger stop-loss">
+                        </div>
+                        <div class="form-text">Enter the price at which to trigger the sell order</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addStopLoss()" title="Create stop-loss order">Add Stop Loss</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPrice = 0;
+let ownedShares = 0;
+
+function lookupStock() {
+    const symbol = document.getElementById('symbol').value.toUpperCase();
+    if (!symbol) return;
+
+    fetch(`/quote?symbol=${symbol}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            currentPrice = data.price;
+            ownedShares = data.shares || 0;
+            
+            document.getElementById('stockInfo').style.display = 'block';
+            document.getElementById('stockSymbol').textContent = data.symbol;
+            document.getElementById('stockName').textContent = data.name;
+            document.getElementById('stockShares').textContent = `Owned: ${ownedShares} shares`;
+            document.getElementById('stockPrice').textContent = formatCurrency(data.price);
+            
+            const change = data.change;
+            const changeElement = document.getElementById('stockChange');
+            changeElement.textContent = `${change >= 0 ? '+' : ''}${change}%`;
+            changeElement.className = `stock-change ${change >= 0 ? 'positive' : 'negative'}`;
+
+            // Set max shares in the input
+            document.getElementById('shares').max = ownedShares;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while looking up the stock.');
+        });
+}
+
+function addStopLoss() {
+    const symbol = document.getElementById('symbol').value.toUpperCase();
+    const shares = parseInt(document.getElementById('shares').value);
+    const stopPrice = parseFloat(document.getElementById('stopPrice').value);
+
+    if (!symbol || !shares || !stopPrice) {
+        alert('Please fill in all fields');
+        return;
+    }
+
+    if (shares > ownedShares) {
+        alert(`You can only sell up to ${ownedShares} shares`);
+        return;
+    }
+
+    fetch('/stop-loss/add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            symbol: symbol,
+            shares: shares,
+            stop_price: stopPrice
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.error || 'Failed to add stop loss order');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while adding stop loss order');
+    });
+}
+
+function editStopLoss(orderId) {
+    // TODO: Implement edit functionality
+    alert('Edit functionality coming soon!');
+}
+
+function cancelStopLoss(orderId) {
+    if (!confirm('Are you sure you want to cancel this stop loss order?')) return;
+
+    fetch('/stop-loss/cancel', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ order_id: orderId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.error || 'Failed to cancel stop loss order');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while canceling stop loss order');
+    });
+}
+
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: '{{ profile.currency }}'
+    }).format(amount);
+}
+</script>
+{% endblock %} 

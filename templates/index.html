@@ -1,0 +1,173 @@
+{% extends "layout.html" %}
+
+{% block title %}Portfolio{% endblock %}
+
+{% block main %}
+<div class="container-fluid">
+    <!-- Portfolio Summary -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Portfolio Value</h5>
+                    <p class="text-muted mb-2">Track your wealth, grow your future.</p>
+                    <div class="portfolio-value">{{ total_value | format_currency(profile.currency) }}</div>
+                    <div class="portfolio-change {% if portfolio_change >= 0 %}positive{% else %}negative{% endif %}">
+                        {% if portfolio_change >= 0 %}
+                        <i class="fas fa-arrow-up"></i>
+                        {% else %}
+                        <i class="fas fa-arrow-down"></i>
+                        {% endif %}
+                        {{ portfolio_change | format_currency(profile.currency) }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card credit-card mb-3">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-muted">Available Credit</h6>
+                    <div class="h3 mb-0">{{ cash | format_currency(profile.currency) }}</div>
+                    <small class="text-muted">Use this balance to buy stocks</small>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4">Quick Actions</h5>
+                    <div class="d-grid gap-2">
+                        <a href="/buy" class="btn btn-primary">
+                            <i class="fas fa-shopping-cart me-2"></i>Buy Stock
+                        </a>
+                        <a href="/sell" class="btn btn-outline-primary">
+                            <i class="fas fa-dollar-sign me-2"></i>Sell Stock
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Holdings -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Your Holdings</h5>
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-sm btn-outline-primary active">All</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary">Gainers</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary">Losers</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if stocks %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Shares</th>
+                                    <th>Avg. Price</th>
+                                    <th>Current Price</th>
+                                    <th>Total Value</th>
+                                    <th>Change</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stock in stocks %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <span class="stock-symbol">{{ stock.symbol }}</span>
+                                            <button class="btn btn-sm btn-link ms-2" title="Add to Watchlist">
+                                                <i class="far fa-star"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <td>{{ stock.shares }}</td>
+                                    <td>{{ (stock.avg_price or 0) | format_currency(profile.currency) }}</td>
+                                    <td>{{ stock.price | format_currency(profile.currency) }}</td>
+                                    <td>{{ (stock.shares * stock.price) | format_currency(profile.currency) }}</td>
+                                    <td>
+                                        {% set change = stock.price - stock.avg_price %}
+                                        <span class="{% if change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {% if change >= 0 %}
+                                            <i class="fas fa-arrow-up"></i>
+                                            {% else %}
+                                            <i class="fas fa-arrow-down"></i>
+                                            {% endif %}
+                                            {{ (change / stock.avg_price * 100) | round(2) }}%
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="/buy?symbol={{ stock.symbol }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-plus"></i>
+                                            </a>
+                                            <a href="/sell?symbol={{ stock.symbol }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-minus"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-chart-line fa-3x mb-3 text-muted"></i>
+                        <h5>No stocks in your portfolio</h5>
+                        <p class="text-muted">Start building your portfolio by buying some stocks!</p>
+                        <a href="/buy" class="btn btn-primary mt-3">
+                            <i class="fas fa-shopping-cart me-2"></i>Buy Your First Stock
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Available Stocks (replaces Recent Activity) -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Available Stocks</h5>
+                </div>
+                <div class="card-body">
+                    {% if available_stocks %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Name</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stock in available_stocks %}
+                                <tr>
+                                    <td>{{ stock.symbol }}</td>
+                                    <td>{{ stock.name }}</td>
+                                    <td>
+                                        <a href="/buy?symbol={{ stock.symbol }}" class="btn btn-primary btn-sm">Buy</a>
+                                        <a href="/quote?symbol={{ stock.symbol }}" class="btn btn-outline-primary btn-sm ms-2">Live Price</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted">No stocks available at the moment.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
