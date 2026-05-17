@@ -1,6 +1,6 @@
-import os
-import requests
 from functools import wraps
+
+import yfinance as yf
 from flask import redirect, render_template, session
 
 
@@ -10,11 +10,18 @@ def apology(message, code=400):
     def escape(s):
         """
         Escape special characters.
-
         https://github.com/jacebrowning/memegen#special-characters
         """
-        for old, new in [("-", "--"), (" ", "-"), ("_", "__"), ("?", "~q"),
-                         ("%", "~p"), ("#", "~h"), ("/", "~s"), ("\"", "''")]:
+        for old, new in [
+            ("-", "--"),
+            (" ", "-"),
+            ("_", "__"),
+            ("?", "~q"),
+            ("%", "~p"),
+            ("#", "~h"),
+            ("/", "~s"),
+            ('"', "''"),
+        ]:
             s = s.replace(old, new)
         return s
 
@@ -24,7 +31,6 @@ def apology(message, code=400):
 def login_required(f):
     """
     Decorate routes to require login.
-
     http://flask.pocoo.org/docs/0.12/patterns/viewdecorators/
     """
 
@@ -38,30 +44,66 @@ def login_required(f):
 
 
 def lookup(symbol):
-    """Look up quote for symbol using Finnhub."""
+    """Look up quote for symbol using Yahoo Finance."""
     try:
-        api_key = os.getenv("FINNHUB_API_KEY")
-        if not api_key:
-            raise ValueError("FINNHUB_API_KEY environment variable is not set")
-            
-        url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={api_key}"
-        response = requests.get(url)
-        data = response.json()
-        
-        if "c" in data and data["c"] != 0:
-            return {
-                "symbol": symbol.upper(),
-                "name": symbol.upper(),  # Finnhub free API does not provide company name
-                "price": float(data["c"]),
-                "change": float(data["dp"]),  # Daily percentage change
-                "change_amount": float(data["d"]),  # Daily change amount
-                "high": float(data["h"]),  # High price of the day
-                "low": float(data["l"]),  # Low price of the day
-                "volume": int(data["v"])  # Trading volume
-            }
-        return None
+        ticker = yf.Ticker(symbol.upper())
+        info = ticker.fast_info
+
+        price = getattr(info, "last_price", None) or getattr(info, "lastPrice", None)
+        if price is None:
+            return None
+
+        prev_close = (
+            getattr(info, "previous_close", None)
+            or getattr(info, "previousClose", None)
+            or price
+        )
+        change_amount = price - prev_close
+        change_pct = (change_amount / prev_close * 100) if prev_close else 0
+
+        return {
+            "symbol": symbol.upper(),
+            "name": getattr(info, "long_name", None)
+            or getattr(info, "longName", symbol.upper()),
+            "price": round(float(price), 2),
+            "change": round(float(change_pct), 2),
+            "change_amount": round(float(change_amount), 2),
+            "high": round(
+                float(
+                    getattr(info, "day_high", None) or getattr(info, "dayHigh", price)
+                ),
+                2,
+            ),
+            "low": round(
+                float(getattr(info, "day_low", None) or getattr(info, "dayLow", price)),
+                2,
+            ),
+            "volume": int(
+                getattr(info, "last_volume", None)
+                or getattr(info, "lastVolume", 0)
+                or 0
+            ),
+            "market_cap": getattr(info, "market_cap", None)
+            or getattr(info, "marketCap", None),
+            "pe_ratio": getattr(info, "trailing_pe", None)
+            or getattr(info, "trailingPE", None),
+            "year_high": round(
+                float(
+                    getattr(info, "fifty_two_week_high", None)
+                    or getattr(info, "yearHigh", price)
+                ),
+                2,
+            ),
+            "year_low": round(
+                float(
+                    getattr(info, "fifty_two_week_low", None)
+                    or getattr(info, "yearLow", price)
+                ),
+                2,
+            ),
+        }
     except Exception as e:
-        print(f"Error looking up {symbol}: {str(e)}")
+        print(f"Error looking up {symbol}: {e}")
         return None
 
 

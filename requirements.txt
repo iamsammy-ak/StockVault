@@ -8,3 +8,4 @@ plotly==5.13.0
 pandas==1.5.3
 python-dotenv==0.19.2
 itsdangerous==2.0.1
+APScheduler==3.10.4
