@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import plotly.graph_objects as go
-import requests
 import yfinance as yf
 from plotly.subplots import make_subplots
 

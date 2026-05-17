@@ -108,12 +108,17 @@ Session(app)
 # Configure email
 init_mail(app)
 
-# Set secret key for token generation
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
+# Ensure a SECRET_KEY is always set (warn in dev if missing)
+if not os.getenv("SECRET_KEY"):
+    import secrets
+
+    app.config["SECRET_KEY"] = secrets.token_hex(32)
+    print(
+        "WARNING: No SECRET_KEY in .env — using a random key. Sessions will reset on restart."
+    )
+else:
+    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 app.config["BASE_URL"] = os.getenv("BASE_URL", "http://localhost:5000")
-
-# Initialize database
-
 
 # Initialize database (only if tables don't exist — safe to call on every start)
 with sqlite3.connect("finance.db") as conn:
@@ -217,15 +222,19 @@ def index():
                     # Sell transaction, skip for cost basis
                     continue
 
-    # Live available stocks (from centralized constant)
+    # Fetch live prices for all available stocks in one batch
     available_stocks_live = []
     for stock in AVAILABLE_STOCKS:
-        quote = lookup(stock["symbol"])
+        try:
+            quote = lookup(stock["symbol"])
+        except Exception:
+            quote = None
         available_stocks_live.append(
             {
                 "symbol": stock["symbol"],
                 "name": stock["name"],
                 "price": quote["price"] if quote and "price" in quote else None,
+                "change": quote["change"] if quote and "change" in quote else None,
             }
         )
 
@@ -306,18 +315,25 @@ def buy():
 @app.route("/history")
 @login_required
 def history():
-    """Show history of transactions"""
+    """Show transaction history with buy/sell filter."""
     db = get_db()
-    transactions = db.execute(
-        """
-        SELECT symbol, shares, price, timestamp
-        FROM transactions
-        WHERE user_id = ?
-        ORDER BY timestamp DESC
-    """,
-        (session["user_id"],),
-    ).fetchall()
-    return render_template("history.html", transactions=transactions)
+    tx_filter = request.args.get("type", "")
+
+    query = (
+        "SELECT symbol, shares, price, timestamp FROM transactions WHERE user_id = ?"
+    )
+    params = [session["user_id"]]
+
+    if tx_filter == "buy":
+        query += " AND shares > 0"
+    elif tx_filter == "sell":
+        query += " AND shares < 0"
+
+    query += " ORDER BY timestamp DESC"
+    transactions = db.execute(query, params).fetchall()
+    return render_template(
+        "history.html", transactions=transactions, filter_type=tx_filter
+    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -418,16 +434,20 @@ def register():
         )
         db.commit()
 
-        # Create user profile with default currency
+        # Log user in immediately
         user_id = db.execute(
             "SELECT id FROM users WHERE username = ?", (username,)
         ).fetchone()["id"]
+        session["user_id"] = user_id
+
+        # Create user profile with default currency
         db.execute(
             "INSERT INTO user_profiles (user_id, currency) VALUES (?, ?)",
             (user_id, "USD"),
         )
         db.commit()
 
+        flash("Welcome to StockVault!", "success")
         return redirect("/")
 
     return render_template("register.html")
@@ -437,6 +457,7 @@ def register():
 @login_required
 def sell():
     """Sell shares of stock"""
+    prefill_symbol = request.args.get("symbol", "")
     db = get_db()
     if request.method == "POST":
         symbol = request.form.get("symbol")
@@ -499,9 +520,8 @@ def sell():
         (session["user_id"],),
     ).fetchall()
 
-    # Convert Row objects to dictionaries
     portfolio = [dict(stock) for stock in stocks]
-    return render_template("sell.html", stocks=portfolio)
+    return render_template("sell.html", stocks=portfolio, prefill_symbol=prefill_symbol)
 
 
 @app.route("/add_cash", methods=["GET", "POST"])
@@ -664,28 +684,33 @@ def reset_password(token):
 @app.route("/watchlist")
 @login_required
 def watchlist():
-    """Show user's watchlist"""
+    """Show user's watchlist with live prices."""
     db = get_db()
     watchlist_items = db.execute(
         """
-        SELECT w.*, l.name as company_name, l.price, l.change
-        FROM watchlist w
-        LEFT JOIN (
-            SELECT symbol, name, price, change
-            FROM (
-                SELECT symbol, name, price, change,
-                       ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY timestamp DESC) as rn
-                FROM stock_quotes
-            ) t
-            WHERE rn = 1
-        ) l ON w.symbol = l.symbol
-        WHERE w.user_id = ?
-        ORDER BY w.added_at DESC
+        SELECT symbol, added_at
+        FROM watchlist
+        WHERE user_id = ?
+        ORDER BY added_at DESC
     """,
         (session["user_id"],),
     ).fetchall()
 
-    return render_template("watchlist.html", watchlist=watchlist_items)
+    # Fetch live prices for each watched symbol
+    live_items = []
+    for item in watchlist_items:
+        quote = lookup(item["symbol"])
+        live_items.append(
+            {
+                "symbol": item["symbol"],
+                "added_at": item["added_at"],
+                "name": quote["name"] if quote else item["symbol"],
+                "price": quote["price"] if quote else None,
+                "change": quote["change"] if quote else None,
+            }
+        )
+
+    return render_template("watchlist.html", watchlist=live_items)
 
 
 @app.route("/watchlist/add", methods=["POST"])
@@ -846,14 +871,14 @@ def create_stop_loss():
     )
     db.commit()
 
-    flash("Stop-loss order created")
+    flash("Stop-loss order created!", "success")
     return redirect("/stop-loss")
 
 
 @app.route("/stop-loss/cancel", methods=["POST"])
 @login_required
 def cancel_stop_loss():
-    """Cancel a stop-loss order"""
+    """Cancel a stop-loss order."""
     order_id = request.form.get("order_id")
     if not order_id:
         return apology("must provide order ID")
@@ -869,7 +894,7 @@ def cancel_stop_loss():
     )
     db.commit()
 
-    flash("Stop-loss order cancelled")
+    flash("Stop-loss order cancelled", "warning")
     return redirect("/stop-loss")
 
 
@@ -1074,46 +1099,41 @@ def api_quote():
 
 # Background scheduler for stop-loss order execution
 def check_stop_loss_orders():
-    """Check and execute stop-loss orders (runs in background scheduler)."""
+    """Check and execute stop-loss orders using live Yahoo Finance prices."""
     with app.app_context():
         db = get_db()
         try:
-            active_orders = db.execute("""
-                SELECT s.*, l.price as current_price
+            active_orders = db.execute(
+                """
+                SELECT s.*, u.cash
                 FROM stop_loss_orders s
-                LEFT JOIN (
-                    SELECT symbol, price
-                    FROM (
-                        SELECT symbol, price,
-                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY last_updated DESC) as rn
-                        FROM stock_quotes
-                    ) t
-                    WHERE rn = 1
-                ) l ON s.symbol = l.symbol
+                JOIN users u ON s.user_id = u.id
                 WHERE s.status = 'active'
-            """).fetchall()
+            """
+            ).fetchall()
 
             for order in active_orders:
-                if (
-                    order["current_price"]
-                    and order["current_price"] <= order["trigger_price"]
-                ):
+                quote = lookup(order["symbol"])
+                if not quote:
+                    continue
+                current_price = quote.get("price")
+                if current_price and current_price <= float(order["trigger_price"]):
                     db.execute(
                         """INSERT INTO transactions (user_id, symbol, shares, price) VALUES (?, ?, ?, ?)""",
                         (
                             order["user_id"],
                             order["symbol"],
                             -order["shares"],
-                            order["current_price"],
+                            current_price,
                         ),
                     )
                     db.execute(
-                        "UPDATE stop_loss_orders SET status = 'executed' WHERE id = ?",
-                        (order["id"],),
+                        "UPDATE stop_loss_orders SET status = 'executed', executed_price = ? WHERE id = ?",
+                        (current_price, order["id"]),
                     )
                     db.execute(
                         "UPDATE users SET cash = cash + ? WHERE id = ?",
-                        (order["shares"] * order["current_price"], order["user_id"]),
+                        (order["shares"] * current_price, order["user_id"]),
                     )
             db.commit()
         except Exception as e:

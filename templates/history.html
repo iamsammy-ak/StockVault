@@ -1,88 +1,101 @@
-{% extends "layout.html" %}
-
-{% block title %}Transaction History{% endblock %}
-
+{% extends "layout.html" %} {% block title %}Transaction History{% endblock %}
 {% block main %}
 <div class="container">
     <div class="row justify-content-center">
         <div class="col-md-10">
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
+                <div
+                    class="card-header d-flex justify-content-between align-items-center"
+                >
                     <h5 class="mb-0">Transaction History</h5>
                     <div class="btn-group">
-                        <button type="button" class="btn btn-sm btn-outline-primary active">All</button>
-                        <button type="button" class="btn btn-sm btn-outline-primary">Buys</button>
-                        <button type="button" class="btn btn-sm btn-outline-primary">Sells</button>
+                        <a
+                            href="/history"
+                            class="btn btn-sm {% if not filter_type %}btn-primary{% else %}btn-outline-primary{% endif %}"
+                            >All</a
+                        >
+                        <a
+                            href="/history?type=buy"
+                            class="btn btn-sm {% if filter_type == 'buy' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+                            >Buys</a
+                        >
+                        <a
+                            href="/history?type=sell"
+                            class="btn btn-sm {% if filter_type == 'sell' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+                            >Sells</a
+                        >
                     </div>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted mb-3">Review your journey—every trade tells a story.</p>
+                    <p class="text-muted mb-3">
+                        Review your journey—every trade tells a story.
+                    </p>
                     {% if transactions %}
                     <div class="table-responsive">
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th title="Date and time of transaction">Date</th>
-                                    <th title="Type of transaction (Buy/Sell)">Type</th>
-                                    <th title="Stock symbol">Symbol</th>
-                                    <th title="Number of shares">Shares</th>
-                                    <th title="Price per share">Price</th>
-                                    <th title="Total value of transaction">Total</th>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Symbol</th>
+                                    <th>Shares</th>
+                                    <th>Price</th>
+                                    <th>Total</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for transaction in transactions %}
+                                {% for t in transactions %}
                                 <tr>
-                                    <td>{{ transaction.timestamp }}</td>
+                                    <td>{{ t.timestamp }}</td>
                                     <td>
-                                        <span class="badge {% if transaction.type == 'buy' %}bg-success{% else %}bg-danger{% endif %}">
-                                            {{ transaction.type | upper }}
-                                        </span>
+                                        {% if t.shares > 0 %}
+                                        <span class="badge bg-success"
+                                            >BUY</span
+                                        >
+                                        {% else %}
+                                        <span class="badge bg-danger"
+                                            >SELL</span
+                                        >
+                                        {% endif %}
                                     </td>
                                     <td>
-                                        <div class="d-flex align-items-center">
-                                            <span>{{ transaction.symbol }}</span>
-                                            <a href="/quote?symbol={{ transaction.symbol }}" class="btn btn-sm btn-link ms-2">
-                                                <i class="fas fa-external-link-alt"></i>
-                                            </a>
-                                        </div>
+                                        <span class="stock-symbol"
+                                            >{{ t.symbol }}</span
+                                        >
+                                        <a
+                                            href="/quote?symbol={{ t.symbol }}"
+                                            class="btn btn-sm btn-link ms-1"
+                                        >
+                                            <i
+                                                class="fas fa-external-link-alt"
+                                            ></i>
+                                        </a>
                                     </td>
-                                    <td>{{ transaction.shares }}</td>
-                                    <td>{{ transaction.price | format_currency(profile.currency) }}</td>
-                                    <td>{{ (transaction.shares * transaction.price) | format_currency(profile.currency) }}</td>
+                                    <td>{{ t.shares | abs }}</td>
+                                    <td>
+                                        {{ t.price |
+                                        format_currency(profile.currency) }}
+                                    </td>
+                                    <td>
+                                        {{ (t.shares * t.price) |
+                                        format_currency(profile.currency) }}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
-
-                    <!-- Pagination -->
-                    {% if total_pages > 1 %}
-                    <nav aria-label="Transaction history pagination" class="mt-4">
-                        <ul class="pagination justify-content-center">
-                            <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
-                                <a class="page-link" href="?page={{ current_page - 1 }}" aria-label="Previous">
-                                    <span aria-hidden="true">&laquo;</span>
-                                </a>
-                            </li>
-                            {% for page in range(1, total_pages + 1) %}
-                            <li class="page-item {% if page == current_page %}active{% endif %}">
-                                <a class="page-link" href="?page={{ page }}">{{ page }}</a>
-                            </li>
-                            {% endfor %}
-                            <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
-                                <a class="page-link" href="?page={{ current_page + 1 }}" aria-label="Next">
-                                    <span aria-hidden="true">&raquo;</span>
-                                </a>
-                            </li>
-                        </ul>
-                    </nav>
-                    {% endif %}
                     {% else %}
                     <div class="text-center py-5">
                         <i class="fas fa-chart-line fa-3x mb-3 text-muted"></i>
                         <h5>No transactions yet</h5>
-                        <p class="text-muted">Your trading history will appear here.</p>
+                        <p class="text-muted">
+                            Your trading history will appear here.
+                        </p>
+                        <a href="/buy" class="btn btn-primary mt-2">
+                            <i class="fas fa-shopping-cart me-2"></i>Make Your
+                            First Trade
+                        </a>
                     </div>
                     {% endif %}
                 </div>
@@ -90,31 +103,4 @@
         </div>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const filterButtons = document.querySelectorAll('.btn-group .btn');
-    const tableRows = document.querySelectorAll('tbody tr');
-
-    filterButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            // Remove active class from all buttons
-            filterButtons.forEach(btn => btn.classList.remove('active'));
-            // Add active class to clicked button
-            this.classList.add('active');
-
-            const filter = this.textContent.toLowerCase();
-            
-            tableRows.forEach(row => {
-                if (filter === 'all') {
-                    row.style.display = '';
-                } else {
-                    const type = row.querySelector('td:nth-child(2)').textContent.trim().toLowerCase();
-                    row.style.display = type === filter ? '' : 'none';
-                }
-            });
-        });
-    });
-});
-</script>
-{% endblock %} 
+{% endblock %}

@@ -1,62 +1,80 @@
-{% extends "layout.html" %}
-
-{% block title %}Stop Loss Orders{% endblock %}
-
-{% block main %}
+{% extends "layout.html" %} {% block title %}Stop Loss Orders{% endblock %} {%
+block main %}
 <div class="container">
     <div class="row justify-content-center">
         <div class="col-md-10">
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
+                <div
+                    class="card-header d-flex justify-content-between align-items-center"
+                >
                     <h5 class="mb-0">Stop Loss Orders</h5>
-                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addStopLossModal">
+                    <button
+                        type="button"
+                        class="btn btn-primary btn-sm"
+                        data-bs-toggle="modal"
+                        data-bs-target="#addStopLossModal"
+                    >
                         <i class="fas fa-plus me-2"></i>Add Stop Loss
                     </button>
                 </div>
                 <div class="card-body">
-                    <h5 class="card-title mb-3">Stop Loss Orders</h5>
-                    <p class="text-muted mb-3">Protect your investments with smart stop-loss orders.</p>
-                    {% if stop_loss_orders %}
+                    <p class="text-muted mb-3">
+                        Protect your investments with automatic sell triggers.
+                    </p>
+
+                    {% if active_orders %}
                     <div class="table-responsive">
                         <table class="table">
                             <thead>
                                 <tr>
                                     <th>Symbol</th>
                                     <th>Shares</th>
-                                    <th>Current Price</th>
-                                    <th>Stop Price</th>
-                                    <th>Status</th>
+                                    <th>Trigger Price</th>
+                                    <th>Created</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for order in stop_loss_orders %}
+                                {% for order in active_orders %}
                                 <tr>
                                     <td>
-                                        <div class="d-flex align-items-center">
-                                            <span class="stock-symbol">{{ order.symbol }}</span>
-                                            <a href="/quote?symbol={{ order.symbol }}" class="btn btn-sm btn-link ms-2">
-                                                <i class="fas fa-external-link-alt"></i>
-                                            </a>
-                                        </div>
+                                        <span class="stock-symbol"
+                                            >{{ order.symbol }}</span
+                                        >
+                                        <a
+                                            href="/quote?symbol={{ order.symbol }}"
+                                            class="btn btn-sm btn-link ms-1"
+                                        >
+                                            <i
+                                                class="fas fa-external-link-alt"
+                                            ></i>
+                                        </a>
                                     </td>
                                     <td>{{ order.shares }}</td>
-                                    <td>{{ order.current_price | format_currency(profile.currency) }}</td>
-                                    <td>{{ order.stop_price | format_currency(profile.currency) }}</td>
                                     <td>
-                                        <span class="badge {% if order.status == 'active' %}bg-success{% elif order.status == 'triggered' %}bg-danger{% else %}bg-warning{% endif %}">
-                                            {{ order.status | upper }}
-                                        </span>
+                                        {{ order.trigger_price |
+                                        format_currency(profile.currency) }}
                                     </td>
+                                    <td>{{ order.created_at }}</td>
                                     <td>
-                                        <div class="btn-group">
-                                            <button class="btn btn-sm btn-outline-primary" onclick="editStopLoss('{{ order.id }}')">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-danger" onclick="cancelStopLoss('{{ order.id }}')">
+                                        <form
+                                            action="/stop-loss/cancel"
+                                            method="post"
+                                            style="display: inline"
+                                        >
+                                            <input
+                                                type="hidden"
+                                                name="order_id"
+                                                value="{{ order.id }}"
+                                            />
+                                            <button
+                                                type="submit"
+                                                class="btn btn-sm btn-outline-danger"
+                                            >
                                                 <i class="fas fa-times"></i>
+                                                Cancel
                                             </button>
-                                        </div>
+                                        </form>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -64,189 +82,137 @@
                         </table>
                     </div>
                     {% else %}
-                    <div class="text-center py-5">
+                    <div class="text-center py-4">
                         <i class="fas fa-stop-circle fa-3x mb-3 text-muted"></i>
-                        <h5>No stop loss orders</h5>
-                        <p class="text-muted">Add stop loss orders to protect your investments</p>
-                        <button type="button" class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#addStopLossModal">
-                            <i class="fas fa-plus me-2"></i>Add Your First Stop Loss
+                        <h5>No active stop loss orders</h5>
+                        <p class="text-muted">
+                            Add a stop loss to automatically protect your
+                            positions.
+                        </p>
+                        <button
+                            type="button"
+                            class="btn btn-primary mt-2"
+                            data-bs-toggle="modal"
+                            data-bs-target="#addStopLossModal"
+                        >
+                            <i class="fas fa-plus me-2"></i>Add Your First Stop
+                            Loss
                         </button>
                     </div>
                     {% endif %}
                 </div>
             </div>
+
+            {% if order_history %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Order History</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Shares</th>
+                                <th>Trigger Price</th>
+                                <th>Executed Price</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in order_history %}
+                            <tr>
+                                <td>{{ order.symbol }}</td>
+                                <td>{{ order.shares }}</td>
+                                <td>
+                                    {{ order.trigger_price |
+                                    format_currency(profile.currency) }}
+                                </td>
+                                <td>
+                                    {{ order.executed_price |
+                                    format_currency(profile.currency) if
+                                    order.executed_price else '—' }}
+                                </td>
+                                <td>
+                                    <span
+                                        class="badge {% if order.status == 'executed' %}bg-success{% elif order.status == 'cancelled' %}bg-secondary{% else %}bg-warning{% endif %}"
+                                    >
+                                        {{ order.status | upper }}
+                                    </span>
+                                </td>
+                                <td>{{ order.created_at }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
 
 <!-- Add Stop Loss Modal -->
-<div class="modal fade" id="addStopLossModal" tabindex="-1" aria-labelledby="addStopLossModalLabel" aria-hidden="true">
+<div class="modal fade" id="addStopLossModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addStopLossModalLabel">Add Stop Loss Order</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title">Add Stop Loss Order</h5>
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                ></button>
             </div>
-            <div class="modal-body">
-                <form id="addStopLossForm">
+            <form action="/stop-loss/create" method="post">
+                <div class="modal-body">
                     <div class="mb-3">
-                        <label for="symbol" class="form-label" title="Enter the ticker symbol for stop-loss">Stock Symbol</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="symbol" name="symbol" placeholder="Enter stock symbol (e.g., AAPL)" required title="Enter the ticker symbol for stop-loss">
-                            <button class="btn btn-outline-primary" type="button" onclick="lookupStock()">
-                                <i class="fas fa-search"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div id="stockInfo" style="display: none;">
-                        <div class="stock-card">
-                            <div class="stock-info">
-                                <div class="stock-symbol" id="stockSymbol"></div>
-                                <div class="stock-name" id="stockName"></div>
-                                <div class="stock-shares" id="stockShares"></div>
-                            </div>
-                            <div class="stock-price">
-                                <div class="stock-current-price" id="stockPrice"></div>
-                                <div class="stock-change" id="stockChange"></div>
-                            </div>
-                        </div>
+                        <label class="form-label">Stock Symbol</label>
+                        <input
+                            type="text"
+                            class="form-control"
+                            name="symbol"
+                            placeholder="e.g., AAPL"
+                            required
+                        />
                     </div>
                     <div class="mb-3">
-                        <label for="shares" class="form-label" title="Number of shares to protect">Number of Shares</label>
-                        <input type="number" class="form-control" id="shares" name="shares" min="1" step="1" required title="Number of shares to protect">
-                        <div class="form-text">Enter the number of shares to sell</div>
+                        <label class="form-label">Number of Shares</label>
+                        <input
+                            type="number"
+                            class="form-control"
+                            name="shares"
+                            min="1"
+                            required
+                        />
                     </div>
                     <div class="mb-3">
-                        <label for="stopPrice" class="form-label" title="Price at which to trigger stop-loss">Stop Price</label>
-                        <div class="input-group">
-                            <span class="input-group-text">{{ profile.currency }}</span>
-                            <input type="number" class="form-control" id="stopPrice" name="stop_price" min="0.01" step="0.01" required title="Price at which to trigger stop-loss">
-                        </div>
-                        <div class="form-text">Enter the price at which to trigger the sell order</div>
+                        <label class="form-label">Trigger Price</label>
+                        <input
+                            type="number"
+                            class="form-control"
+                            name="trigger_price"
+                            step="0.01"
+                            min="0.01"
+                            required
+                        />
                     </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="addStopLoss()" title="Create stop-loss order">Add Stop Loss</button>
-            </div>
+                </div>
+                <div class="modal-footer">
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        data-bs-dismiss="modal"
+                    >
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Create Order
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
-
-<script>
-let currentPrice = 0;
-let ownedShares = 0;
-
-function lookupStock() {
-    const symbol = document.getElementById('symbol').value.toUpperCase();
-    if (!symbol) return;
-
-    fetch(`/quote?symbol=${symbol}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                alert(data.error);
-                return;
-            }
-
-            currentPrice = data.price;
-            ownedShares = data.shares || 0;
-            
-            document.getElementById('stockInfo').style.display = 'block';
-            document.getElementById('stockSymbol').textContent = data.symbol;
-            document.getElementById('stockName').textContent = data.name;
-            document.getElementById('stockShares').textContent = `Owned: ${ownedShares} shares`;
-            document.getElementById('stockPrice').textContent = formatCurrency(data.price);
-            
-            const change = data.change;
-            const changeElement = document.getElementById('stockChange');
-            changeElement.textContent = `${change >= 0 ? '+' : ''}${change}%`;
-            changeElement.className = `stock-change ${change >= 0 ? 'positive' : 'negative'}`;
-
-            // Set max shares in the input
-            document.getElementById('shares').max = ownedShares;
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while looking up the stock.');
-        });
-}
-
-function addStopLoss() {
-    const symbol = document.getElementById('symbol').value.toUpperCase();
-    const shares = parseInt(document.getElementById('shares').value);
-    const stopPrice = parseFloat(document.getElementById('stopPrice').value);
-
-    if (!symbol || !shares || !stopPrice) {
-        alert('Please fill in all fields');
-        return;
-    }
-
-    if (shares > ownedShares) {
-        alert(`You can only sell up to ${ownedShares} shares`);
-        return;
-    }
-
-    fetch('/stop-loss/add', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            symbol: symbol,
-            shares: shares,
-            stop_price: stopPrice
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            window.location.reload();
-        } else {
-            alert(data.error || 'Failed to add stop loss order');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred while adding stop loss order');
-    });
-}
-
-function editStopLoss(orderId) {
-    // TODO: Implement edit functionality
-    alert('Edit functionality coming soon!');
-}
-
-function cancelStopLoss(orderId) {
-    if (!confirm('Are you sure you want to cancel this stop loss order?')) return;
-
-    fetch('/stop-loss/cancel', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ order_id: orderId })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            window.location.reload();
-        } else {
-            alert(data.error || 'Failed to cancel stop loss order');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred while canceling stop loss order');
-    });
-}
-
-function formatCurrency(amount) {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: '{{ profile.currency }}'
-    }).format(amount);
-}
-</script>
-{% endblock %} 
+{% endblock %}
